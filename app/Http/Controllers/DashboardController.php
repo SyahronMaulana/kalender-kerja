@@ -1,0 +1,1 @@
+<?php namespace App\Http\Controllers; use App\Models\{Schedule,Division}; class DashboardController extends Controller {public function index(){return view('dashboard',['total'=>Schedule::count(),'divisions'=>Division::withCount('schedules')->get(),'today'=>Schedule::with('division')->whereDate('schedule_date',today())->orderBy('start_time')->get()]);}}
