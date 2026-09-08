@@ -1,0 +1,73 @@
+FROM dunglas/frankenphp:php8.2-bookworm
+
+WORKDIR /app
+
+# System dependencies + PHP extensions
+RUN apt-get update && apt-get install -y \
+    git \
+    unzip \
+    curl \
+    nodejs \
+    npm \
+    libzip-dev \
+    libicu-dev \
+    libpng-dev \
+    libjpeg62-turbo-dev \
+    libfreetype6-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install \
+        pdo_mysql \
+        mbstring \
+        bcmath \
+        exif \
+        pcntl \
+        intl \
+        zip \
+        gd \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# Composer dependencies
+COPY composer.json composer.lock ./
+
+RUN composer install \
+    --no-dev \
+    --no-interaction \
+    --prefer-dist \
+    --optimize-autoloader
+
+# Node dependencies
+COPY package.json package-lock.json* ./
+
+RUN npm install
+
+# Application
+COPY . .
+
+# Build Vite
+RUN npm run build
+
+# Laravel directories
+RUN mkdir -p \
+    storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/views \
+    storage/logs \
+    bootstrap/cache
+
+RUN chown -R www-data:www-data \
+    storage \
+    bootstrap/cache
+
+# Laravel production optimizations
+RUN php artisan optimize
+
+# Vercel provides PORT
+ENV SERVER_NAME=:8000
+
+EXPOSE 8000
+
+CMD ["frankenphp", "php-server", "--root", "public", "--listen", ":8000"]
